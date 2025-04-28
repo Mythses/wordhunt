@@ -13,40 +13,102 @@
         .letter-cell {
             width: 60px; height: 60px; border: 1px solid #ccc; display: flex;
             justify-content: center; align-items: center; font-size: 1.5rem;
-            font-weight: bold; text-transform: uppercase; cursor: default; /* Default cursor */
+            font-weight: bold; text-transform: uppercase; cursor: default;
             user-select: none; transition: background-color 0.2s ease; border-radius: 0.375rem;
             background-color: white; box-shadow: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px 0 rgba(0,0,0,0.06);
+            position: relative;
         }
         .letter-input {
             width: 90%; height: 90%; text-align: center; font-size: 1.5rem;
             font-weight: bold; text-transform: uppercase; border: none;
             outline: none; background-color: transparent; padding: 0; margin: 0; border-radius: 0.375rem;
         }
-        .selected { background-color: #60a5fa; color: white; } /* bg-blue-400 */
-        .last-selected { background-color: #2563eb; color: white; } /* bg-blue-600 */
+        .selected { background-color: #60a5fa; color: white; }
+        .last-selected { background-color: #2563eb; color: white; }
         #game-grid {
             display: grid; gap: 0.5rem; touch-action: none;
-            justify-content: center; margin: auto; transition: box-shadow 0.3s ease; /* Added for flash */
+            justify-content: center; margin: auto; transition: box-shadow 0.3s ease;
+            position: relative; padding: 1px; /* Prevent shadow clipping */
         }
-        /* Allow clicking/dragging on populated cells only when game running */
         .letter-cell.game-running:not(:has(input)) { cursor: pointer; }
-        #message-area { min-height: 2rem; transition: all 0.3s ease-in-out; opacity: 1; }
+        #message-area { min-height: 1.5rem; transition: all 0.3s ease-in-out; opacity: 1; } /* Reduced height */
         #found-words-list::-webkit-scrollbar { width: 8px; }
         #found-words-list::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
         #found-words-list::-webkit-scrollbar-thumb { background: #888; border-radius: 10px; }
         #found-words-list::-webkit-scrollbar-thumb:hover { background: #555; }
-
-        /* Flash effect styles */
-        .flash-success { box-shadow: 0 0 15px 5px rgba(74, 222, 128, 0.7); } /* Green glow */
-        .flash-error { box-shadow: 0 0 15px 5px rgba(248, 113, 113, 0.7); } /* Red glow */
+        /* Use CSS variable for flash intensity */
+        .flash-success { box-shadow: 0 0 15px var(--flash-intensity, 5px) rgba(74, 222, 128, 0.7); }
+        /* Removed flash-error style */
+        #path-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 10;
+        }
+        #path-line {
+            stroke: rgba(37, 99, 235, 0.7); stroke-width: 5; fill: none;
+            stroke-linecap: round; stroke-linejoin: round;
+        }
+        #score-feedback {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 1.5rem; font-weight: bold; color: #16a34a; /* Green-600 */
+            opacity: 0; pointer-events: none; z-index: 20;
+            transition: opacity 0.5s ease-out;
+            animation: score-popup 0.7s ease-out forwards;
+        }
+        @keyframes score-popup {
+            0% { opacity: 1; transform: translate(-50%, -50%) scale(0.5); }
+            70% { opacity: 1; transform: translate(-50%, -100%) scale(var(--score-scale, 1.2)); }
+            100% { opacity: 0; transform: translate(-50%, -150%) scale(var(--score-scale, 1.2)); }
+        }
+        /* Helper class to hide elements */
+        .hidden { display: none; }
     </style>
 </head>
-<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4">
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
 
-    <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-2xl">
-        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">Word Hunt Trainer</h1>
+    <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-md flex flex-col items-center gap-5">
 
-        <div id="settings-area" class="flex flex-wrap justify-center items-center gap-4 mb-6">
+        <h1 class="text-3xl font-bold text-center text-gray-800">Word Hunt Trainer</h1>
+
+
+        <div class="flex justify-around w-full">
+            <div class="text-center">
+                <div class="text-lg font-semibold text-gray-700">Time Left</div>
+                <div id="timer-display" class="text-4xl font-bold text-blue-600">0</div>
+            </div>
+            <div class="text-center">
+                <div class="text-lg font-semibold text-gray-700">Score</div>
+                <div id="score-display" class="text-4xl font-bold text-green-600">0</div>
+            </div>
+        </div>
+
+
+        <div class="relative">
+            <div id="game-grid" class="p-1 rounded-lg"></div>
+            <svg id="path-overlay">
+                <polyline id="path-line" points=""></polyline>
+            </svg>
+            <div id="score-feedback"></div>
+        </div>
+
+
+        <div class="text-center">
+            <span class="text-lg font-medium text-gray-700">Current Word:</span>
+            <span id="current-word-display" class="text-xl font-bold text-blue-600 ml-2 h-8 inline-block min-w-[100px] border-b-2 border-gray-300 align-bottom"></span>
+        </div>
+
+
+        <div class="flex flex-wrap justify-center gap-3">
+            <button id="start-game" class="px-5 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 shadow-md font-semibold">Start Game</button>
+            <button id="submit-word" class="px-5 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 shadow-md font-semibold hidden" disabled>Submit Word</button>
+            <button id="reset-current-game" class="px-5 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 shadow-md font-semibold hidden">Stop</button>
+            <button id="clear-board" class="px-5 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 shadow-md font-semibold">Clear</button>
+        </div>
+
+
+        <div id="message-area" class="text-center font-medium h-6"></div>
+
+
+        <div id="settings-area" class="flex flex-wrap justify-center items-center gap-4 border-t pt-4 w-full">
             <div>
                 <label for="grid-size" class="text-sm font-medium text-gray-700 mr-2">Grid Size (NxN):</label>
                 <input type="number" id="grid-size" value="4" min="3" max="6" class="w-16 p-1 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
@@ -55,47 +117,13 @@
                 <label for="time-limit" class="text-sm font-medium text-gray-700 mr-2">Time (seconds):</label>
                 <input type="number" id="time-limit" value="90" min="10" step="10" class="w-20 p-1 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
             </div>
-            <button id="apply-settings" class="px-4 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 shadow-sm">Apply Settings</button>
+            <button id="apply-settings" class="px-4 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 shadow-sm">Apply</button>
         </div>
 
-        <div class="flex flex-col md:flex-row gap-6">
-            <div class="flex-1 flex flex-col items-center">
-                <div id="game-grid" class="mb-4 p-1 rounded-lg"></div>
 
-                 <div class="mb-4 text-center">
-                    <span class="text-lg font-medium text-gray-700">Current Word:</span>
-                    <span id="current-word-display" class="text-xl font-bold text-blue-600 ml-2 h-8 inline-block min-w-[100px] border-b-2 border-gray-300 align-bottom"></span>
-                </div>
-
-                <div class="flex flex-wrap justify-center gap-3 mb-4">
-                    <button id="start-game" class="px-5 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 shadow-md font-semibold">Start Game</button>
-                    <button id="submit-word" class="px-5 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 shadow-md font-semibold" disabled>Submit Word</button>
-                    <button id="reset-current-game" class="px-5 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 shadow-md font-semibold">Stop</button>
-                    <button id="clear-board" class="px-5 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 shadow-md font-semibold">Clear</button>
-                </div>
-                 <div id="message-area" class="text-center font-medium mb-4 h-6"></div>
-            </div>
-
-            <div class="w-full md:w-1/3 bg-gray-50 p-4 rounded-lg shadow-inner flex flex-col">
-                <div class="text-center mb-4">
-                    <div class="text-lg font-semibold text-gray-700">Time Left</div>
-                    <div id="timer-display" class="text-4xl font-bold text-blue-600">0</div>
-                </div>
-                <div class="text-center mb-4">
-                    <div class="text-lg font-semibold text-gray-700">Score</div>
-                    <div id="score-display" class="text-4xl font-bold text-green-600">0</div>
-                </div>
-                <div class="flex-1 flex flex-col min-h-0">
-                     <h3 class="text-lg font-semibold text-gray-700 text-center mb-2">Found Words (<span id="word-count">0</span>)</h3>
-                    <div id="found-words-list" class="flex-1 overflow-y-auto bg-white border border-gray-200 rounded-md p-2 text-sm space-y-1"></div>
-                </div>
-            </div>
-        </div>
     </div>
 
     <script>
-        // --- DOM Elements ---
-        // Select multiple elements more concisely
         const getEl = id => document.getElementById(id);
         const gridContainer = getEl('game-grid');
         const gridSizeInput = getEl('grid-size');
@@ -108,67 +136,57 @@
         const currentWordDisplay = getEl('current-word-display');
         const timerDisplay = getEl('timer-display');
         const scoreDisplay = getEl('score-display');
-        const foundWordsList = getEl('found-words-list');
-        const wordCountDisplay = getEl('word-count');
+        // const foundWordsList = getEl('found-words-list'); // Removed from this layout
+        // const wordCountDisplay = getEl('word-count'); // Removed from this layout
         const messageArea = getEl('message-area');
         const settingsArea = getEl('settings-area');
         const bodyElement = document.body;
+        const pathLine = getEl('path-line');
+        const scoreFeedback = getEl('score-feedback');
 
-        // --- Game State ---
         let gridSize = parseInt(gridSizeInput.value);
         let timeLimit = parseInt(timeLimitInput.value);
         let timeLeft = timeLimit;
         let score = 0;
         let timerInterval = null;
         let isGameRunning = false;
-        let currentSelection = []; // {row, col, letter}
-        let currentPath = []; // Cell elements
+        let currentSelection = [];
+        let currentPath = [];
         let foundWords = new Set();
         let isDragging = false;
-        let gridLetters = []; // 2D array of letters on board
-        let cells = []; // 1D array of cell elements
-        let messageTimeout; // For flash messages
+        let gridLetters = [];
+        let cells = [];
+        let messageTimeout;
+        let scoreFeedbackTimeout;
 
-        // --- Constants ---
         const LETTER_FREQUENCIES = "AAAAAAAAABBCCDDDDEEEEEEEEEEEEFFGGGHHIIIIIIIIIJKLLLLMMNNNNNNOOOOOOOOPPQRRRRRRSSSSSSTTTTTTTUUUUVVWWXYYZ";
         const DICTIONARY_API_URL = "https://api.dictionaryapi.dev/api/v2/entries/en/";
         const SCORE_MAP = { 3: 100, 4: 400, 5: 800, 6: 1400, 7: 1800, 8: 2200 };
 
-        // --- Functions ---
-
-        const getRandomLetter = () => {
-            const letter = LETTER_FREQUENCIES[Math.floor(Math.random() * LETTER_FREQUENCIES.length)];
-            return letter === 'Q' ? 'Q' : letter; // Store 'Q' internally
-        };
+        const getRandomLetter = () => LETTER_FREQUENCIES[Math.floor(Math.random() * LETTER_FREQUENCIES.length)] === 'Q' ? 'Q' : LETTER_FREQUENCIES[Math.floor(Math.random() * LETTER_FREQUENCIES.length)];
 
         const createGrid = () => {
             gridContainer.innerHTML = '';
             gridContainer.style.gridTemplateColumns = `repeat(${gridSize}, 60px)`;
-            gridContainer.classList.remove('game-running', 'flash-success', 'flash-error'); // Clear classes
+            gridContainer.classList.remove('game-running', 'flash-success'); // Removed flash-error reference
             cells = [];
             gridLetters = Array(gridSize).fill(null).map(() => Array(gridSize).fill(''));
-
+            pathLine.setAttribute('points', '');
             for (let r = 0; r < gridSize; r++) {
                 for (let c = 0; c < gridSize; c++) {
                     const cell = document.createElement('div');
-                    cell.className = 'letter-cell'; // Use className for simplicity
+                    cell.className = 'letter-cell';
                     cell.dataset.row = r; cell.dataset.col = c;
-
                     const input = document.createElement('input');
                     input.className = 'letter-input';
                     input.type = 'text'; input.maxLength = 1;
                     input.dataset.row = r; input.dataset.col = c;
-
                     input.addEventListener('input', (e) => {
-                        let value = e.target.value.toUpperCase().slice(0, 1);
-                        e.target.value = value;
-                        gridLetters[r][c] = /^[A-Z]$/.test(value) ? value : '';
+                        let v = e.target.value.toUpperCase().slice(0, 1);
+                        e.target.value = v; gridLetters[r][c] = /^[A-Z]$/.test(v) ? v : '';
                     });
                     input.addEventListener('keydown', handleInputKeyDown);
-
-                    cell.appendChild(input);
-                    gridContainer.appendChild(cell);
-                    cells.push(cell);
+                    cell.appendChild(input); gridContainer.appendChild(cell); cells.push(cell);
                 }
             }
         };
@@ -176,34 +194,20 @@
         const handleInputKeyDown = (e) => {
             if (isGameRunning || !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
             e.preventDefault();
-            const input = e.target;
-            const r = parseInt(input.dataset.row);
-            const c = parseInt(input.dataset.col);
+            const i = e.target, r = parseInt(i.dataset.row), c = parseInt(i.dataset.col);
             let nr = r, nc = c;
-
-            if (e.key === 'ArrowUp') nr = Math.max(0, r - 1);
-            else if (e.key === 'ArrowDown') nr = Math.min(gridSize - 1, r + 1);
-            else if (e.key === 'ArrowLeft') nc = Math.max(0, c - 1);
-            else if (e.key === 'ArrowRight') nc = Math.min(gridSize - 1, c + 1);
-
-            const nextInput = gridContainer.querySelector(`.letter-input[data-row='${nr}'][data-col='${nc}']`);
-            if (nextInput) { nextInput.focus(); nextInput.select(); }
+            if (e.key === 'ArrowUp') nr = Math.max(0, r - 1); else if (e.key === 'ArrowDown') nr = Math.min(gridSize - 1, r + 1);
+            else if (e.key === 'ArrowLeft') nc = Math.max(0, c - 1); else if (e.key === 'ArrowRight') nc = Math.min(gridSize - 1, c + 1);
+            const next = gridContainer.querySelector(`.letter-input[data-row='${nr}'][data-col='${nc}']`);
+            if (next) { next.focus(); next.select(); }
         };
 
         const populateGrid = () => {
             cells.forEach(cell => {
-                const r = parseInt(cell.dataset.row);
-                const c = parseInt(cell.dataset.col);
-                let letter = gridLetters[r][c];
-
-                if (!letter || !/^[A-Z]$/.test(letter)) {
-                    letter = getRandomLetter();
-                    gridLetters[r][c] = letter;
-                }
-                const displayLetter = (letter === 'Q') ? 'Qu' : letter;
-                cell.innerHTML = displayLetter;
-                cell.dataset.letter = letter;
-                cell.classList.add('game-running');
+                const r = parseInt(cell.dataset.row), c = parseInt(cell.dataset.col);
+                let l = gridLetters[r][c];
+                if (!l || !/^[A-Z]$/.test(l)) { l = getRandomLetter(); gridLetters[r][c] = l; }
+                cell.innerHTML = (l === 'Q') ? 'Qu' : l; cell.dataset.letter = l; cell.classList.add('game-running');
             });
             gridContainer.classList.add('game-running');
         };
@@ -211,174 +215,147 @@
         const updateCurrentWordDisplay = () => {
             const word = currentSelection.map(item => item.letter).join('');
             currentWordDisplay.textContent = word.replace(/Q/g, 'QU');
-
             submitWordButton.disabled = word.length < 3 || !isGameRunning;
-            // Reset/Clear buttons are generally enabled, disable handled elsewhere if needed (like API call)
-            resetCurrentGameButton.disabled = false;
-            clearBoardButton.disabled = false;
-
-            cells.forEach(cell => cell.classList.remove('selected', 'last-selected'));
-            currentPath.forEach((cell, index) => {
-                cell.classList.add('selected');
-                if (index === currentPath.length - 1) cell.classList.add('last-selected');
+            cells.forEach(c => c.classList.remove('selected', 'last-selected'));
+            let points = "";
+            currentPath.forEach((cell, i) => {
+                cell.classList.add('selected'); if (i === currentPath.length - 1) cell.classList.add('last-selected');
+                points += `${cell.offsetLeft + cell.offsetWidth / 2},${cell.offsetTop + cell.offsetHeight / 2} `;
             });
+            pathLine.setAttribute('points', points.trim());
         };
 
-        const areCellsAdjacent = (cell1, cell2) => {
-            if (!cell1 || !cell2) return false;
-            const r1 = parseInt(cell1.dataset.row), c1 = parseInt(cell1.dataset.col);
-            const r2 = parseInt(cell2.dataset.row), c2 = parseInt(cell2.dataset.col);
-            return Math.abs(r1 - r2) <= 1 && Math.abs(c1 - c2) <= 1 && !(r1 === r2 && c1 === c2);
+        const areCellsAdjacent = (c1, c2) => {
+            if (!c1 || !c2) return false;
+            const r1 = parseInt(c1.dataset.row), c1c = parseInt(c1.dataset.col), r2 = parseInt(c2.dataset.row), c2c = parseInt(c2.dataset.col);
+            return Math.abs(r1 - r2) <= 1 && Math.abs(c1c - c2c) <= 1 && !(r1 === r2 && c1c === c2c);
+        };
+
+        const handleCellInteraction = (cell) => {
+             if (!cell || !cell.dataset.letter) return false; // Indicate if interaction happened
+             const r = parseInt(cell.dataset.row), c = parseInt(cell.dataset.col), letter = cell.dataset.letter;
+             const lastCell = currentPath.length > 0 ? currentPath[currentPath.length - 1] : null;
+             const existingIndex = currentSelection.findIndex(item => item.row === r && item.col === c);
+
+             if (existingIndex !== -1) { // Cell already selected
+                 if (isDragging && currentSelection.length > 1 && existingIndex === currentSelection.length - 2) { // Backtracking drag
+                     currentSelection.pop(); currentPath.pop(); updateCurrentWordDisplay(); return true;
+                 } else if (!isDragging && existingIndex === currentSelection.length - 1) { // Click last: deselect
+                     currentSelection.pop(); currentPath.pop(); updateCurrentWordDisplay(); return true;
+                 } else if (!isDragging) { // Click existing (not last)
+                     flashMessage("Cannot reuse letters out of sequence.", "error"); return false;
+                 }
+                 // If dragging over existing non-adjacent/non-last, do nothing further
+                 return false;
+             } else { // New cell
+                 if (!lastCell || areCellsAdjacent(lastCell, cell)) { // Check adjacency
+                     currentSelection.push({ row: r, col: c, letter }); currentPath.push(cell); updateCurrentWordDisplay(); return true;
+                 } else if (!isDragging) { // Click non-adjacent
+                     flashMessage("Letters must be adjacent.", "error"); return false;
+                 }
+                 // If dragging over non-adjacent, do nothing further
+                 return false;
+             }
         };
 
         const handleCellClick = (event) => {
             if (!isGameRunning || isDragging) return;
             const cell = event.target.closest('.letter-cell');
-            if (!cell || !cell.dataset.letter) return;
-
-            const r = parseInt(cell.dataset.row), c = parseInt(cell.dataset.col), letter = cell.dataset.letter;
-            const lastCell = currentPath.length > 0 ? currentPath[currentPath.length - 1] : null;
-            const existingIndex = currentSelection.findIndex(item => item.row === r && item.col === c);
-
-            if (existingIndex !== -1) { // Cell already selected
-                if (existingIndex === currentSelection.length - 1) { // Click last: deselect
-                    currentSelection.pop(); currentPath.pop();
-                } else { flashMessage("Cannot reuse letters out of sequence.", "error"); return; }
-            } else { // New cell
-                if (!lastCell || areCellsAdjacent(lastCell, cell)) { // Check adjacency
-                    currentSelection.push({ row: r, col: c, letter }); currentPath.push(cell);
-                } else { flashMessage("Letters must be adjacent.", "error"); return; }
-            }
-            updateCurrentWordDisplay();
+            handleCellInteraction(cell);
         };
 
-        // --- Touch/Drag Handling ---
-        const getCellFromPoint = (x, y) => {
-            const el = document.elementFromPoint(x, y);
-            return el ? el.closest('.letter-cell') : null;
-        };
+        const getCellFromPoint = (x, y) => document.elementFromPoint(x, y)?.closest('.letter-cell');
 
         const handleDragStart = (event) => {
             if (!isGameRunning) return;
             const clientX = event.touches ? event.touches[0].clientX : event.clientX;
             const clientY = event.touches ? event.touches[0].clientY : event.clientY;
             const startCell = getCellFromPoint(clientX, clientY);
-
             if (startCell && startCell.dataset.letter) {
-                isDragging = true;
-                clearSelection();
+                isDragging = true; clearSelection();
                 if (event.cancelable && event.type.startsWith('touch')) event.preventDefault();
-                const r = parseInt(startCell.dataset.row), c = parseInt(startCell.dataset.col), letter = startCell.dataset.letter;
-                currentSelection.push({ row: r, col: c, letter }); currentPath.push(startCell);
-                updateCurrentWordDisplay();
+                handleCellInteraction(startCell); // Add the first cell
             } else { isDragging = false; }
         };
 
         const handleDragMove = (event) => {
             if (!isDragging || !isGameRunning) return;
             if (event.cancelable && event.type.startsWith('touch')) event.preventDefault();
-
             const clientX = event.touches ? event.touches[0].clientX : event.clientX;
             const clientY = event.touches ? event.touches[0].clientY : event.clientY;
             const currentCell = getCellFromPoint(clientX, clientY);
-            if (!currentCell || !currentCell.dataset.letter) return;
-
-            const r = parseInt(currentCell.dataset.row), c = parseInt(currentCell.dataset.col), letter = currentCell.dataset.letter;
             const lastSelection = currentSelection.length > 0 ? currentSelection[currentSelection.length - 1] : null;
-            if (lastSelection && lastSelection.row === r && lastSelection.col === c) return; // Hovering on last
-
-            const existingIndex = currentSelection.findIndex(item => item.row === r && item.col === c);
-            const lastCell = currentPath.length > 0 ? currentPath[currentPath.length - 1] : null;
-
-            if (existingIndex !== -1) { // Already in path
-                if (currentSelection.length > 1 && existingIndex === currentSelection.length - 2) { // Backtracking
-                    currentSelection.pop(); currentPath.pop(); updateCurrentWordDisplay();
-                } return;
-            }
-            if (lastCell && areCellsAdjacent(lastCell, currentCell)) { // Add adjacent
-                currentSelection.push({ row: r, col: c, letter }); currentPath.push(currentCell); updateCurrentWordDisplay();
-            }
+            if (currentCell && lastSelection && currentCell.dataset.row === lastSelection.row && currentCell.dataset.col === lastSelection.col) return; // Hovering on last
+            handleCellInteraction(currentCell); // Attempt to add/handle the cell
         };
 
         const handleDragEnd = () => {
             if (!isDragging || !isGameRunning) return;
             isDragging = false;
-            if (currentSelection.length >= 3) submitWord();
-            else clearSelection();
+            if (currentSelection.length >= 3) submitWord(); else clearSelection();
         };
 
-        // --- Game Logic ---
-        const clearSelection = () => {
-            currentSelection = []; currentPath = [];
-            updateCurrentWordDisplay();
+        const clearSelection = () => { currentSelection = []; currentPath = []; pathLine.setAttribute('points', ''); updateCurrentWordDisplay(); };
+
+        const flashGridSuccess = (score) => {
+            const intensity = 5 + Math.min(score / 200, 10); // Scale intensity (5px to 15px)
+            gridContainer.style.setProperty('--flash-intensity', intensity + 'px');
+            gridContainer.classList.add('flash-success');
+            setTimeout(() => gridContainer.classList.remove('flash-success'), 350);
         };
 
-        const flashGrid = (type) => {
-            const className = type === 'success' ? 'flash-success' : 'flash-error';
-            gridContainer.classList.add(className);
-            setTimeout(() => gridContainer.classList.remove(className), 350); // Duration of flash
+        const showScoreFeedback = (points) => {
+            clearTimeout(scoreFeedbackTimeout); scoreFeedback.textContent = `+${points}`;
+            const scale = 1 + Math.min(points / 1000, 1);
+            scoreFeedback.style.setProperty('--score-scale', scale); scoreFeedback.style.opacity = 1;
+            scoreFeedback.style.animation = 'none'; void scoreFeedback.offsetWidth;
+            scoreFeedback.style.animation = 'score-popup 0.7s ease-out forwards';
+            scoreFeedbackTimeout = setTimeout(() => { scoreFeedback.style.opacity = 0; }, 700);
         };
 
         const validateWord = async (word) => {
             if (!word || word.length < 3) return false;
-            submitWordButton.disabled = true; resetCurrentGameButton.disabled = true; // Disable buttons during check
+            submitWordButton.disabled = true; resetCurrentGameButton.disabled = true;
             submitWordButton.textContent = 'Checking...'; messageArea.textContent = '';
-
             try {
                 const response = await fetch(DICTIONARY_API_URL + word.toUpperCase());
-                if (response.ok) return true;
-                if (response.status === 404) return false;
-                // Handle API errors
-                const errorData = await response.json().catch(() => ({ title: response.statusText || 'Unknown API error' }));
-                flashMessage(`API Error: ${errorData.title}`, "error"); return false;
-            } catch (error) {
-                flashMessage("Network error. Check connection.", "error"); return false;
-            } finally {
-                submitWordButton.textContent = 'Submit Word';
-                resetCurrentGameButton.disabled = false; // Re-enable reset
-                // submit button state set by clearSelection -> updateCurrentWordDisplay later
-            }
+                if (response.ok) return true; if (response.status === 404) return false;
+                const eData = await response.json().catch(() => ({ title: response.statusText || 'API Error' }));
+                flashMessage(`API Error: ${eData.title}`, "error"); return false;
+            } catch (error) { flashMessage("Network error.", "error"); return false; }
+            finally { submitWordButton.textContent = 'Submit Word'; resetCurrentGameButton.disabled = !isGameRunning; } // Re-enable stop only if game still running
         };
 
-        const calculateScore = (len) => len < 3 ? 0 : (SCORE_MAP[Math.min(len, 8)] || 0);
+        const calculateScore = (len) => len < 3 ? 0 : (SCORE_MAP[Math.min(len, 8)] || SCORE_MAP[8] + (len - 8) * 500);
 
         const submitWord = async () => {
             const word = currentSelection.map(item => item.letter).join('');
             const displayWord = word.replace(/Q/g, 'QU');
-
             if (word.length < 3) { flashMessage("Word must be >= 3 letters.", "error"); clearSelection(); return; }
             if (foundWords.has(displayWord)) { flashMessage(`Already found: ${displayWord}`, "warning"); clearSelection(); return; }
-
             const isValid = await validateWord(word);
-
             if (isValid) {
-                flashGrid('success'); // Green flash
                 const wordScore = calculateScore(word.length);
+                flashGridSuccess(wordScore); // Flash green with intensity
                 score += wordScore; foundWords.add(displayWord);
                 scoreDisplay.textContent = score;
-                addWordToList(displayWord, wordScore);
-                wordCountDisplay.textContent = foundWords.size;
-                flashMessage(`+${wordScore} for ${displayWord}!`, "success");
+                // addWordToList(displayWord, wordScore); // Removed list display
+                // wordCountDisplay.textContent = foundWords.size; // Removed count display
+                showScoreFeedback(wordScore);
+                flashMessage(`Found: ${displayWord}!`, "success");
             } else {
-                flashGrid('error'); // Red flash
-                // Show "not valid" only if no API/Network error was already shown by validateWord
+                // No flash for invalid words
                 if (!messageArea.textContent.includes("API Error") && !messageArea.textContent.includes("Network error")) {
                    flashMessage(`"${displayWord}" is not valid.`, "error");
                 }
             }
-            clearSelection(); // Clear selection after attempt
+            clearSelection();
         };
 
-        const addWordToList = (word, score) => {
-            const li = document.createElement('div');
-            li.className = 'flex justify-between items-center p-1 bg-gray-50 rounded border-b border-gray-200';
-            li.innerHTML = `<span class="font-medium text-gray-800">${word}</span><span class="text-sm font-bold text-green-600">+${score}</span>`;
-            foundWordsList.insertBefore(li, foundWordsList.firstChild);
-        };
+        // const addWordToList = (word, score) => { ... }; // Function removed as list is hidden
 
         const startTimer = () => {
-            clearInterval(timerInterval);
-            timeLeft = timeLimit; timerDisplay.textContent = timeLeft;
+            clearInterval(timerInterval); timeLeft = timeLimit; timerDisplay.textContent = timeLeft;
             timerDisplay.classList.remove('text-red-600');
             timerInterval = setInterval(() => {
                 timeLeft--; timerDisplay.textContent = timeLeft;
@@ -388,82 +365,77 @@
         };
 
         const endGame = () => {
-            clearInterval(timerInterval);
-            isGameRunning = false; isDragging = false;
+            clearInterval(timerInterval); isDragging = false;
             flashMessage(`Time's up! Final Score: ${score}`, "info", 5000);
-            setButtonStates(false); // Set buttons for non-running state
-            startGameButton.textContent = "Play Again";
+            setButtonStates(false);
             gridContainer.classList.remove('game-running');
             cells.forEach(cell => cell.classList.remove('game-running'));
             clearSelection();
         };
 
-        // Helper to set button/settings disabled state based on game running status
         const setButtonStates = (running) => {
              isGameRunning = running;
-             startGameButton.disabled = running;
-             submitWordButton.disabled = !running || currentSelection.length < 3; // Also depends on selection
-             resetCurrentGameButton.disabled = false; // Always enabled unless mid-API check
-             clearBoardButton.disabled = false;      // Always enabled
-             settingsArea.querySelectorAll('input, button').forEach(el => el.disabled = running);
-             startGameButton.textContent = running ? "Game Running" : "Start Game";
-        };
+             startGameButton.classList.toggle('hidden', running);
+             resetCurrentGameButton.classList.toggle('hidden', !running);
+             submitWordButton.classList.toggle('hidden', !running);
+             clearBoardButton.classList.toggle('hidden', running);
 
+             submitWordButton.disabled = !running || currentSelection.length < 3;
+             resetCurrentGameButton.disabled = !running; // Disable stop if not running
+             settingsArea.querySelectorAll('input, button').forEach(el => el.disabled = running);
+             // Ensure correct buttons are visible initially/after state change
+             if (!running) {
+                 startGameButton.classList.remove('hidden');
+                 resetCurrentGameButton.classList.add('hidden');
+                 submitWordButton.classList.add('hidden');
+                 clearBoardButton.classList.remove('hidden');
+             } else {
+                 startGameButton.classList.add('hidden');
+                 resetCurrentGameButton.classList.remove('hidden');
+                 submitWordButton.classList.remove('hidden');
+                 clearBoardButton.classList.add('hidden');
+             }
+        };
 
         const startGame = () => {
             if (isGameRunning) return;
             score = 0; foundWords.clear(); clearSelection();
-            scoreDisplay.textContent = '0'; foundWordsList.innerHTML = '';
-            wordCountDisplay.textContent = '0'; messageArea.textContent = '';
-            timerDisplay.classList.remove('text-red-600');
-            populateGrid(); // Fill grid (respecting existing letters)
-            startTimer();
-            setButtonStates(true); // Set buttons for running state
-        };
-
-        // Reset score/timer/words, keep board letters
-        const resetCurrentBoardState = () => {
-            clearInterval(timerInterval); isDragging = false;
-            score = 0; foundWords.clear();
             scoreDisplay.textContent = '0';
-            timerDisplay.textContent = timeLimit; timerDisplay.classList.remove('text-red-600');
-            foundWordsList.innerHTML = ''; wordCountDisplay.textContent = '0';
-            messageArea.textContent = ''; messageArea.style.opacity = 1;
-            clearSelection(); // Clears path highlights & updates buttons via updateCurrentWordDisplay
-            gridContainer.classList.remove('game-running', 'flash-success', 'flash-error');
-            cells.forEach(cell => cell.classList.remove('game-running'));
-            setButtonStates(false); // Set buttons for non-running state
+            // foundWordsList.innerHTML = ''; // List removed
+            // wordCountDisplay.textContent = '0'; // Count removed
+            messageArea.textContent = ''; timerDisplay.classList.remove('text-red-600');
+            populateGrid(); startTimer(); setButtonStates(true);
         };
 
-        // Clear everything back to initial input state
-        const clearBoardCompletely = () => {
-            clearInterval(timerInterval); isDragging = false;
-            score = 0; foundWords.clear(); currentSelection = []; currentPath = []; gridLetters = [];
+        const resetCurrentBoardState = () => { // This is the "Stop" button action now
+            clearInterval(timerInterval); isDragging = false; score = 0; foundWords.clear();
             scoreDisplay.textContent = '0'; timerDisplay.textContent = timeLimit;
-            timerDisplay.classList.remove('text-red-600'); foundWordsList.innerHTML = '';
-            wordCountDisplay.textContent = '0'; currentWordDisplay.textContent = '';
-            messageArea.textContent = ''; messageArea.style.opacity = 1;
+            timerDisplay.classList.remove('text-red-600');
+            // foundWordsList.innerHTML = ''; wordCountDisplay.textContent = '0'; // List/Count removed
+            messageArea.textContent = ''; messageArea.style.opacity = 1; clearSelection();
+            gridContainer.classList.remove('game-running', 'flash-success');
+            cells.forEach(cell => cell.classList.remove('game-running'));
+            setButtonStates(false);
+        };
+
+        const clearBoardCompletely = () => { // This is the "Clear" button action
+            resetCurrentBoardState(); // Stop game state first
+            gridLetters = []; // Clear internal letters
             createGrid(); // Recreate grid with inputs
-            setButtonStates(false); // Set buttons for non-running state
         };
 
         const flashMessage = (message, type = "info", duration = 2500) => {
-             clearTimeout(messageTimeout);
-             messageArea.textContent = message;
-             messageArea.className = 'text-center font-medium mb-4 h-6'; // Reset classes
-             if (type === 'error') messageArea.classList.add('text-red-600');
-             else if (type === 'success') messageArea.classList.add('text-green-600');
-             else if (type === 'warning') messageArea.classList.add('text-yellow-600');
-             else messageArea.classList.add('text-blue-600'); // Info
+             clearTimeout(messageTimeout); messageArea.textContent = message;
+             messageArea.className = 'text-center font-medium h-6'; // Base classes
+             const colorClass = type === 'error' ? 'text-red-600' : type === 'success' ? 'text-green-600' : type === 'warning' ? 'text-yellow-600' : 'text-blue-600';
+             messageArea.classList.add(colorClass);
              messageArea.style.opacity = 1;
              messageTimeout = setTimeout(() => { messageArea.style.opacity = 0; }, duration);
         };
 
-        // --- Event Listeners ---
         applySettingsButton.addEventListener('click', () => {
-            if (isGameRunning) { flashMessage("Apply settings after game or clear board.", "info"); return; }
-            const newSize = parseInt(gridSizeInput.value);
-            const newTime = parseInt(timeLimitInput.value);
+            if (isGameRunning) { flashMessage("Apply settings when game is stopped.", "info"); return; }
+            const newSize = parseInt(gridSizeInput.value), newTime = parseInt(timeLimitInput.value);
             let changed = false;
             if (newSize >= 3 && newSize <= 6 && gridSize !== newSize) { gridSize = newSize; changed = true; }
             else if (newSize < 3 || newSize > 6) { gridSizeInput.value = gridSize; flashMessage("Grid size: 3-6.", "warning"); }
@@ -474,11 +446,9 @@
 
         startGameButton.addEventListener('click', startGame);
         submitWordButton.addEventListener('click', submitWord);
-        resetCurrentGameButton.addEventListener('click', resetCurrentBoardState);
-        clearBoardButton.addEventListener('click', clearBoardCompletely);
+        resetCurrentGameButton.addEventListener('click', resetCurrentBoardState); // Stop button
+        clearBoardButton.addEventListener('click', clearBoardCompletely); // Clear button
         gridContainer.addEventListener('click', handleCellClick);
-
-        // Drag Listeners
         gridContainer.addEventListener('mousedown', handleDragStart);
         gridContainer.addEventListener('touchstart', handleDragStart, { passive: false });
         bodyElement.addEventListener('mousemove', handleDragMove);
@@ -487,9 +457,7 @@
         bodyElement.addEventListener('touchend', handleDragEnd);
         bodyElement.addEventListener('touchcancel', handleDragEnd);
 
-        // --- Initial Setup ---
-        clearBoardCompletely(); // Start clean
-
+        clearBoardCompletely(); // Initial setup
     </script>
 
 </body>
