@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word Hunt Trainer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* Basic styling and font */
+        body {
+            font-family: 'Inter', sans-serif;
+            touch-action: manipulation; /* Prevent default touch actions like scrolling */
+        }
+        /* Style for the grid cells */
+        .letter-cell {
+            width: 60px; /* Fixed size for cells */
+            height: 60px;
+            border: 1px solid #ccc;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5rem; /* Larger font for letters */
+            font-weight: bold;
+            text-transform: uppercase;
+            cursor: pointer;
+            user-select: none; /* Prevent text selection */
+            transition: background-color 0.2s ease;
+            border-radius: 0.375rem; /* rounded-md */
+            background-color: white; /* Default background */
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06); /* shadow-md */
+        }
+        /* Style for input fields within cells */
+        .letter-input {
+            width: 90%;
+            height: 90%;
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            border: none;
+            outline: none;
+            background-color: transparent;
+            padding: 0;
+            margin: 0;
+            border-radius: 0.375rem;
+        }
+        /* Style for selected cells during word formation */
+        .selected {
+            background-color: #60a5fa; /* bg-blue-400 */
+            color: white;
+        }
+        /* Style for the last selected cell */
+        .last-selected {
+             background-color: #2563eb; /* bg-blue-600 */
+             color: white;
+        }
+        /* Ensure grid container centers its content */
+        #game-grid {
+            display: grid;
+            gap: 0.5rem; /* gap-2 */
+            touch-action: none; /* Disable scrolling/zooming on the grid itself */
+            justify-content: center; /* Center grid items horizontally */
+            margin: auto; /* Center the grid container */
+        }
+        /* Disable pointer events on populated cells when game is NOT running */
+        /* We remove pointer-events block from inputs when game IS running */
+        .letter-cell:not(.game-running) > input {
+             /* Allow input editing when game not running */
+        }
+        .letter-cell.game-running:not(:has(input)) {
+             /* Allow clicking/dragging on populated cells only when game running */
+            cursor: pointer;
+        }
+         /* Style for the message display area */
+        #message-area {
+            min-height: 2rem; /* Ensure space even when empty */
+            transition: all 0.3s ease-in-out;
+            opacity: 1; /* Start visible */
+        }
+        /* Custom scrollbar for found words */
+        #found-words-list::-webkit-scrollbar {
+            width: 8px;
+        }
+        #found-words-list::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        #found-words-list::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        #found-words-list::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-2xl">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">Word Hunt Trainer</h1>
+
+        <div id="settings-area" class="flex flex-wrap justify-center items-center gap-4 mb-6">
+            <div>
+                <label for="grid-size" class="text-sm font-medium text-gray-700 mr-2">Grid Size (NxN):</label>
+                <input type="number" id="grid-size" value="3" min="3" max="6" class="w-16 p-1 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div>
+                <label for="time-limit" class="text-sm font-medium text-gray-700 mr-2">Time (seconds):</label>
+                <input type="number" id="time-limit" value="90" min="10" step="10" class="w-20 p-1 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <button id="apply-settings" class="px-4 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 shadow-sm">Apply Settings</button>
+        </div>
+
+        <div class="flex flex-col md:flex-row gap-6">
+
+            <div class="flex-1 flex flex-col items-center">
+                <div id="game-grid" class="mb-4">
+                    </div>
+
+                 <div class="mb-4 text-center">
+                    <span class="text-lg font-medium text-gray-700">Current Word:</span>
+                    <span id="current-word-display" class="text-xl font-bold text-blue-600 ml-2 h-8 inline-block min-w-[100px] border-b-2 border-gray-300 align-bottom"></span>
+                </div>
+
+                <div class="flex flex-wrap justify-center gap-3 mb-4">
+                    <button id="start-game" class="px-5 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 shadow-md font-semibold">Start Game</button>
+                    <button id="submit-word" class="px-5 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 shadow-md font-semibold" disabled>Submit Word</button>
+                    <button id="reset-current-game" class="px-5 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 shadow-md font-semibold">Reset</button>
+                     <button id="clear-board" class="px-5 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 shadow-md font-semibold">Clear</button>
+                </div>
+
+                 <div id="message-area" class="text-center font-medium text-red-600 mb-4 h-6"></div>
+
+            </div>
+
+            <div class="w-full md:w-1/3 bg-gray-50 p-4 rounded-lg shadow-inner flex flex-col">
+                <div class="text-center mb-4">
+                    <div class="text-lg font-semibold text-gray-700">Time Left</div>
+                    <div id="timer-display" class="text-4xl font-bold text-blue-600">0</div>
+                </div>
+                <div class="text-center mb-4">
+                    <div class="text-lg font-semibold text-gray-700">Score</div>
+                    <div id="score-display" class="text-4xl font-bold text-green-600">0</div>
+                </div>
+                <div class="flex-1 flex flex-col min-h-0">
+                     <h3 class="text-lg font-semibold text-gray-700 text-center mb-2">Found Words (<span id="word-count">0</span>)</h3>
+                    <div id="found-words-list" class="flex-1 overflow-y-auto bg-white border border-gray-200 rounded-md p-2 text-sm space-y-1">
+                        </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const gridContainer = document.getElementById('game-grid');
+        const gridSizeInput = document.getElementById('grid-size');
+        const timeLimitInput = document.getElementById('time-limit');
+        const applySettingsButton = document.getElementById('apply-settings');
+        const startGameButton = document.getElementById('start-game');
+        const submitWordButton = document.getElementById('submit-word');
+        const resetCurrentGameButton = document.getElementById('reset-current-game'); // Renamed from reset-game
+        const clearBoardButton = document.getElementById('clear-board'); // Renamed from clear-selection
+        const currentWordDisplay = document.getElementById('current-word-display');
+        const timerDisplay = document.getElementById('timer-display');
+        const scoreDisplay = document.getElementById('score-display');
+        const foundWordsList = document.getElementById('found-words-list');
+        const wordCountDisplay = document.getElementById('word-count');
+        const messageArea = document.getElementById('message-area');
+        const settingsArea = document.getElementById('settings-area');
+        const bodyElement = document.body; // For touchmove listener
+
+        // --- Game State ---
+        let gridSize = parseInt(gridSizeInput.value);
+        let timeLimit = parseInt(timeLimitInput.value);
+        let timeLeft = timeLimit;
+        let score = 0;
+        let timerInterval = null;
+        let isGameRunning = false;
+        let currentSelection = []; // Array of {row, col, letter} objects
+        let currentPath = []; // Array of cell elements
+        let foundWords = new Set();
+        let isDragging = false;
+        // gridLetters now stores the letters *currently displayed* on the board (or '' if input)
+        // It's populated initially by user input, then filled by populateGrid, and NOT cleared by resetCurrentBoardState
+        let gridLetters = [];
+        let cells = []; // 1D array of all cell elements
+
+        // --- Constants ---
+        const VOWELS = "AEIOU";
+        const CONSONANTS = "BCDFGHJKLMNPQRSTVWXYZ";
+        const LETTER_FREQUENCIES = "AAAAAAAAABBCCDDDDEEEEEEEEEEEEFFGGGHHIIIIIIIIIJKLLLLMMNNNNNNOOOOOOOOPPQRRRRRRSSSSSSTTTTTTTUUUUVVWWXYYZ";
+        const DICTIONARY_API_URL = "https://api.dictionaryapi.dev/api/v2/entries/en/";
+
+        // --- Scoring ---
+        const scoreMap = {
+            3: 100,
+            4: 400,
+            5: 800,
+            6: 1400,
+            7: 1800,
+            8: 2200, // and above
+        };
+
+        // --- Functions ---
+
+        /**
+         * Generates a random letter ('Q' represents 'Qu').
+         */
+        function getRandomLetter() {
+            const randIndex = Math.floor(Math.random() * LETTER_FREQUENCIES.length);
+            let letter = LETTER_FREQUENCIES[randIndex];
+            return letter === 'Q' ? 'Q' : letter; // Store 'Q' internally
+        }
+
+        /**
+         * Creates the game grid HTML elements with input fields.
+         * Initializes the gridLetters array based on current gridSize.
+         */
+        function createGrid() {
+            gridContainer.innerHTML = '';
+            gridContainer.style.gridTemplateColumns = `repeat(${gridSize}, 60px)`;
+            gridContainer.classList.remove('game-running');
+            cells = [];
+            // Initialize gridLetters with empty strings for an empty grid
+            gridLetters = Array(gridSize).fill(null).map(() => Array(gridSize).fill(''));
+
+            for (let r = 0; r < gridSize; r++) {
+                for (let c = 0; c < gridSize; c++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('letter-cell');
+                    cell.dataset.row = r;
+                    cell.dataset.col = c;
+
+                    const input = document.createElement('input');
+                    input.classList.add('letter-input');
+                    input.type = 'text';
+                    input.maxLength = 1;
+                    input.dataset.row = r;
+                    input.dataset.col = c;
+                    // Update gridLetters state when user types
+                    input.addEventListener('input', (e) => {
+                        let value = e.target.value.toUpperCase();
+                        if (value.length > 1) value = value.slice(0, 1);
+                        e.target.value = value;
+                        if (/^[A-Z]$/.test(value)) {
+                            gridLetters[r][c] = value; // Store valid letter
+                        } else {
+                            gridLetters[r][c] = ''; // Clear if invalid
+                            e.target.value = '';
+                        }
+                    });
+                    input.addEventListener('keydown', handleInputKeyDown);
+
+                    cell.appendChild(input);
+                    gridContainer.appendChild(cell);
+                    cells.push(cell);
+                }
+            }
+            console.log("Grid created, gridLetters:", JSON.parse(JSON.stringify(gridLetters))); // Debug log
+        }
+
+        /**
+         * Handles arrow key navigation between grid input cells.
+         */
+        function handleInputKeyDown(e) {
+            if (isGameRunning) return; // Don't navigate inputs when game is running
+            const targetInput = e.target;
+            const row = parseInt(targetInput.dataset.row);
+            const col = parseInt(targetInput.dataset.col);
+            let nextRow = row;
+            let nextCol = col;
+
+            switch (e.key) {
+                case 'ArrowUp': nextRow = Math.max(0, row - 1); e.preventDefault(); break;
+                case 'ArrowDown': nextRow = Math.min(gridSize - 1, row + 1); e.preventDefault(); break;
+                case 'ArrowLeft': nextCol = Math.max(0, col - 1); e.preventDefault(); break;
+                case 'ArrowRight': nextCol = Math.min(gridSize - 1, col + 1); e.preventDefault(); break;
+                default: return;
+            }
+
+            const nextInput = gridContainer.querySelector(`.letter-input[data-row='${nextRow}'][data-col='${nextCol}']`);
+            if (nextInput) {
+                nextInput.focus();
+                nextInput.select();
+            }
+        }
+
+        /**
+         * Populates the grid cells with letters FROM the gridLetters state.
+         * If a spot in gridLetters is empty, generates a random letter and updates gridLetters.
+         * Removes input fields and displays letters.
+         */
+        function populateGrid() {
+            console.log("Populating grid. Initial gridLetters:", JSON.parse(JSON.stringify(gridLetters))); // Debug log
+            cells.forEach(cell => {
+                const row = parseInt(cell.dataset.row);
+                const col = parseInt(cell.dataset.col);
+                let letter = gridLetters[row][col]; // Get letter from state (user input or previous generation)
+
+                // If the state doesn't have a valid letter for this cell, generate one
+                if (!letter || !/^[A-Z]$/.test(letter)) {
+                    letter = getRandomLetter(); // Gets 'Q' or other letter
+                    gridLetters[row][col] = letter; // Update the state
+                }
+
+                // Display the letter (handle 'Qu' case for display)
+                const displayLetter = (letter === 'Q') ? 'Qu' : letter;
+                cell.innerHTML = displayLetter; // Display 'Qu' or single letter
+                cell.dataset.letter = letter; // Store actual letter ('Q') in data attribute
+                cell.classList.add('game-running'); // Mark cell as active for styling/events
+            });
+            gridContainer.classList.add('game-running'); // Mark container as active
+            console.log("Grid populated. Final gridLetters:", JSON.parse(JSON.stringify(gridLetters))); // Debug log
+        }
+
+
+        /**
+         * Updates the display for the current word being formed and button states.
+         */
+        function updateCurrentWordDisplay() {
+            const word = currentSelection.map(item => item.letter).join('');
+            currentWordDisplay.textContent = word.replace(/Q/g, 'QU');
+
+            // Enable/disable buttons based on selection and game state
+            // Submit only enabled if word >= 3 letters and game is running
+            submitWordButton.disabled = word.length < 3 || !isGameRunning;
+            // Reset button is generally enabled unless mid-API call (handled in validateWord)
+            resetCurrentGameButton.disabled = false;
+            // Clear button is always enabled
+            clearBoardButton.disabled = false;
+
+
+             // Update cell styles for visual feedback
+            cells.forEach(cell => {
+                // Only apply selection styles if the cell is part of the game (has a letter)
+                if(cell.dataset.letter) {
+                    cell.classList.remove('selected', 'last-selected');
+                }
+            });
+            currentPath.forEach((cell, index) => {
+                cell.classList.add('selected');
+                if (index === currentPath.length - 1) {
+                    cell.classList.add('last-selected'); // Highlight the last letter
+                }
+            });
+        }
+
+        /**
+         * Checks if two cells are adjacent (horizontally, vertically, or diagonally).
+         */
+        function areCellsAdjacent(cell1, cell2) {
+            if (!cell1 || !cell2) return false;
+            const r1 = parseInt(cell1.dataset.row);
+            const c1 = parseInt(cell1.dataset.col);
+            const r2 = parseInt(cell2.dataset.row);
+            const c2 = parseInt(cell2.dataset.col);
+            return Math.abs(r1 - r2) <= 1 && Math.abs(c1 - c2) <= 1 && !(r1 === r2 && c1 === c2);
+        }
+
+        /**
+         * Handles clicking on a letter cell during the game.
+         */
+        function handleCellClick(event) {
+            if (!isGameRunning || isDragging) return;
+
+            const cell = event.target.closest('.letter-cell');
+            // Ensure click is on a cell that contains a letter (populated)
+            if (!cell || !cell.dataset.letter) return;
+
+            const row = parseInt(cell.dataset.row);
+            const col = parseInt(cell.dataset.col);
+            const letter = cell.dataset.letter; // Get actual letter ('Q')
+
+            const lastSelection = currentSelection.length > 0 ? currentSelection[currentSelection.length - 1] : null;
+            const lastCell = currentPath.length > 0 ? currentPath[currentPath.length - 1] : null;
+
+            const existingIndex = currentSelection.findIndex(item => item.row === row && item.col === col);
+
+            if (existingIndex !== -1) {
+                if (existingIndex === currentSelection.length - 1) { // Click last selected: deselect
+                    currentSelection.pop();
+                    currentPath.pop();
+                } else { // Click already selected (not last): invalid sequence
+                    flashMessage("Cannot reuse letters out of sequence.", "error");
+                    return;
+                }
+            } else { // New cell selection
+                if (!lastSelection || areCellsAdjacent(lastCell, cell)) { // Check adjacency if not first letter
+                    currentSelection.push({ row, col, letter });
+                    currentPath.push(cell);
+                } else { // Not adjacent
+                    flashMessage("Letters must be adjacent.", "error");
+                    return;
+                }
+            }
+            updateCurrentWordDisplay();
+        }
+
+        // --- Touch/Drag Handling --- ( Largely unchanged, ensures interaction only when isGameRunning )
+        function getCellFromPoint(x, y) {
+             const displayRect = currentWordDisplay.getBoundingClientRect();
+            const overlaps = x >= displayRect.left && x <= displayRect.right && y >= displayRect.top && y <= displayRect.bottom;
+            let originalPointerEvents = null;
+            if (overlaps) {
+                 originalPointerEvents = currentWordDisplay.style.pointerEvents;
+                 currentWordDisplay.style.pointerEvents = 'none';
+            }
+            const element = document.elementFromPoint(x, y);
+            if (overlaps) {
+                currentWordDisplay.style.pointerEvents = originalPointerEvents;
+            }
+            return element ? element.closest('.letter-cell') : null;
+        }
+
+        function handleDragStart(event) {
+            if (!isGameRunning) return; // Only start drag if game is running
+            const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+            const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+            const startCell = getCellFromPoint(clientX, clientY);
+
+            if (startCell && startCell.dataset.letter) { // Ensure start on a lettered cell
+                isDragging = true;
+                clearSelection(); // Start fresh selection
+                 if (event.cancelable && event.type.startsWith('touch')) event.preventDefault();
+                const row = parseInt(startCell.dataset.row);
+                const col = parseInt(startCell.dataset.col);
+                const letter = startCell.dataset.letter;
+                currentSelection.push({ row, col, letter });
+                currentPath.push(startCell);
+                updateCurrentWordDisplay();
+            } else {
+                 isDragging = false; // Reset flag if drag didn't start on a valid cell
+            }
+        }
+
+        function handleDragMove(event) {
+            if (!isDragging || !isGameRunning) return;
+            if (event.cancelable && event.type.startsWith('touch')) event.preventDefault();
+
+            const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+            const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+            const currentCell = getCellFromPoint(clientX, clientY);
+
+            if (!currentCell || !currentCell.dataset.letter) return; // Ignore if not on a lettered cell
+
+            const row = parseInt(currentCell.dataset.row);
+            const col = parseInt(currentCell.dataset.col);
+            const letter = currentCell.dataset.letter;
+
+            const lastSelection = currentSelection.length > 0 ? currentSelection[currentSelection.length - 1] : null;
+            if (lastSelection && lastSelection.row === row && lastSelection.col === col) return; // Hovering on last selected
+
+            const existingIndex = currentSelection.findIndex(item => item.row === row && item.col === col);
+            const lastCell = currentPath.length > 0 ? currentPath[currentPath.length - 1] : null;
+
+            if (existingIndex !== -1) { // Cell already in path
+                if (currentSelection.length > 1 && existingIndex === currentSelection.length - 2) { // Backtracking
+                    currentSelection.pop();
+                    currentPath.pop();
+                    updateCurrentWordDisplay();
+                }
+                return; // Ignore otherwise
+            }
+
+            // Add new adjacent cell
+            if (lastCell && areCellsAdjacent(lastCell, currentCell)) {
+                currentSelection.push({ row, col, letter });
+                currentPath.push(currentCell);
+                updateCurrentWordDisplay();
+            }
+        }
+
+        function handleDragEnd(event) {
+            if (!isDragging || !isGameRunning) return;
+            isDragging = false;
+            if (currentSelection.length >= 3) {
+                submitWord(); // Submit if long enough
+            } else {
+                clearSelection(); // Clear if too short
+            }
+        }
+
+        // --- Game Logic ---
+
+        /**
+         * Clears the current word selection path and highlights ONLY.
+         */
+        function clearSelection() {
+            currentSelection = [];
+            currentPath = [];
+            updateCurrentWordDisplay(); // Updates display and button states
+        }
+
+        /**
+         * Validates the current word using the Dictionary API.
+         */
+        async function validateWord(word) {
+            if (!word || word.length < 3) return false;
+            const apiWord = word.toUpperCase();
+
+            // Disable buttons during API call
+            submitWordButton.disabled = true;
+            resetCurrentGameButton.disabled = true; // Disable reset during check
+            submitWordButton.textContent = 'Checking...';
+            messageArea.textContent = '';
+
+            try {
+                const response = await fetch(DICTIONARY_API_URL + apiWord);
+                if (response.ok) return true;
+                if (response.status === 404) return false;
+                // Handle other API errors
+                console.error("Dictionary API error:", response.status, response.statusText);
+                const errorData = await response.json().catch(() => null);
+                flashMessage(`API Error: ${errorData?.title || response.statusText || 'Unknown error'}`, "error");
+                return false;
+            } catch (error) {
+                console.error("Network error fetching dictionary:", error);
+                flashMessage("Network error. Check connection.", "error");
+                return false;
+            } finally {
+                 // Re-enable buttons (state managed by updateCurrentWordDisplay called later)
+                 submitWordButton.textContent = 'Submit Word';
+                 resetCurrentGameButton.disabled = false; // Re-enable reset
+                 // submitWordButton state will be set correctly by clearSelection -> updateCurrentWordDisplay
+            }
+        }
+
+        /**
+         * Calculates the score for a given word length.
+         */
+        function calculateScore(wordLength) {
+            if (wordLength < 3) return 0;
+            return scoreMap[Math.min(wordLength, 8)] || 0;
+        }
+
+        /**
+         * Submits the currently selected word for validation and scoring.
+         */
+        async function submitWord() {
+            const word = currentSelection.map(item => item.letter).join(''); // Actual letters ('Q')
+            const displayWord = word.replace(/Q/g, 'QU'); // Word as displayed ('QU')
+
+            if (word.length < 3) {
+                flashMessage("Word must be at least 3 letters long.", "error");
+                clearSelection(); return;
+            }
+            if (foundWords.has(displayWord)) {
+                flashMessage(`Already found: ${displayWord}`, "warning");
+                clearSelection(); return;
+            }
+
+            const isValid = await validateWord(word);
+
+            if (isValid) {
+                const wordScore = calculateScore(word.length);
+                score += wordScore;
+                foundWords.add(displayWord);
+                scoreDisplay.textContent = score;
+                addWordToList(displayWord, wordScore);
+                wordCountDisplay.textContent = foundWords.size;
+                flashMessage(`+${wordScore} points for ${displayWord}!`, "success");
+            } else {
+                if (!messageArea.textContent.includes("API Error") && !messageArea.textContent.includes("Network error")) {
+                   flashMessage(`"${displayWord}" is not a valid word.`, "error");
+                }
+            }
+            clearSelection(); // Clear selection after attempt
+        }
+
+        /**
+         * Adds a found word and its score to the list display.
+         */
+        function addWordToList(word, score) {
+            const listItem = document.createElement('div');
+            listItem.classList.add('flex', 'justify-between', 'items-center', 'p-1', 'bg-gray-50', 'rounded', 'border-b', 'border-gray-200');
+            listItem.innerHTML = `
+                <span class="font-medium text-gray-800">${word}</span>
+                <span class="text-sm font-bold text-green-600">+${score}</span>
+            `;
+            foundWordsList.insertBefore(listItem, foundWordsList.firstChild);
+        }
+
+        /**
+         * Starts the game timer countdown.
+         */
+        function startTimer() {
+            clearInterval(timerInterval);
+            timeLeft = timeLimit;
+            timerDisplay.textContent = timeLeft;
+            timerDisplay.classList.remove('text-red-600');
+
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                timerDisplay.textContent = timeLeft;
+                if (timeLeft <= 10 && timeLeft > 0) timerDisplay.classList.add('text-red-600');
+                if (timeLeft <= 0) endGame();
+            }, 1000);
+        }
+
+        /**
+         * Ends the current game session (timer runs out).
+         */
+        function endGame() {
+            clearInterval(timerInterval);
+            isGameRunning = false;
+            isDragging = false;
+            flashMessage(`Time's up! Final Score: ${score}`, "info", 5000);
+
+            // Update button states: Enable start/reset/clear, disable submit
+            startGameButton.disabled = false;
+            startGameButton.textContent = "Play Again"; // Or "Start Game" if preferred
+            submitWordButton.disabled = true;
+            resetCurrentGameButton.disabled = false; // Enable reset
+            clearBoardButton.disabled = false;      // Enable clear
+            settingsArea.querySelectorAll('input, button').forEach(el => el.disabled = false);
+            gridContainer.classList.remove('game-running'); // Deactivate grid interactions
+            cells.forEach(cell => cell.classList.remove('game-running')); // Deactivate individual cells
+
+            clearSelection(); // Clear highlights
+        }
+
+        /**
+         * Starts a new game session. Populates grid if needed.
+         */
+        function startGame() {
+            if (isGameRunning) return;
+
+            isGameRunning = true;
+            score = 0; // Reset score for new game
+            foundWords.clear(); // Clear found words for new game
+            clearSelection(); // Clear any selection highlights
+
+            // Reset UI related to score/words
+            scoreDisplay.textContent = '0';
+            foundWordsList.innerHTML = '';
+            wordCountDisplay.textContent = '0';
+            messageArea.textContent = '';
+            timerDisplay.classList.remove('text-red-600');
+
+            // Disable settings while playing
+            settingsArea.querySelectorAll('input, button').forEach(el => el.disabled = true);
+
+            populateGrid(); // Fill grid with letters (respecting pre-filled/existing)
+            startTimer();
+
+            // Update button states for active game
+            startGameButton.disabled = true;
+            startGameButton.textContent = "Game Running";
+            submitWordButton.disabled = true; // Disabled until a word is selected
+            resetCurrentGameButton.disabled = false; // Enable Reset during game
+            clearBoardButton.disabled = false;      // Enable Clear during game
+        }
+
+        /**
+         * Resets the current board's state (score, timer, found words) WITHOUT changing letters.
+         * Allows restarting the game with the same board layout.
+         */
+        function resetCurrentBoardState() {
+            clearInterval(timerInterval); // Stop timer if running
+            isGameRunning = false;
+            isDragging = false; // Stop any active drag
+
+            // Reset game state variables, but keep gridLetters
+            score = 0;
+            foundWords.clear();
+
+            // Reset UI display elements
+            scoreDisplay.textContent = '0';
+            timerDisplay.textContent = timeLimit; // Reset timer display to full time
+            timerDisplay.classList.remove('text-red-600');
+            foundWordsList.innerHTML = '';
+            wordCountDisplay.textContent = '0';
+            messageArea.textContent = ''; // Clear messages
+            messageArea.style.opacity = 1;
+
+            clearSelection(); // Clear highlights and update button states via updateCurrentWordDisplay
+
+            // Ensure grid interaction is stopped, but letters remain visible
+            gridContainer.classList.remove('game-running');
+            cells.forEach(cell => cell.classList.remove('game-running'));
+
+            // Update button states for stopped game, ready to start again
+            startGameButton.disabled = false;
+            startGameButton.textContent = "Start Game"; // Ready to start this board again
+            submitWordButton.disabled = true;
+            resetCurrentGameButton.disabled = false; // Can reset again
+            clearBoardButton.disabled = false;      // Can clear fully
+            settingsArea.querySelectorAll('input, button').forEach(el => el.disabled = false); // Re-enable settings
+
+            console.log("Current board state reset. Letters kept:", JSON.parse(JSON.stringify(gridLetters))); // Debug log
+        }
+
+
+        /**
+         * Clears the entire board back to the initial input state.
+         * Called by the "Clear" button.
+         */
+        function clearBoardCompletely() {
+            clearInterval(timerInterval); // Stop timer if running
+
+            // Reset all game state variables
+            isGameRunning = false;
+            isDragging = false;
+            score = 0;
+            foundWords.clear();
+            currentSelection = [];
+            currentPath = [];
+            gridLetters = []; // Clear stored letters state
+
+            // Reset UI elements
+            scoreDisplay.textContent = '0';
+            timerDisplay.textContent = timeLimit;
+            timerDisplay.classList.remove('text-red-600');
+            foundWordsList.innerHTML = '';
+            wordCountDisplay.textContent = '0';
+            currentWordDisplay.textContent = '';
+            messageArea.textContent = '';
+            messageArea.style.opacity = 1;
+
+            createGrid(); // Recreate the grid with empty inputs
+
+            // Reset button states to initial pre-game state
+            startGameButton.disabled = false;
+            startGameButton.textContent = "Start Game";
+            submitWordButton.disabled = true;
+            resetCurrentGameButton.disabled = false; // Reset is enabled
+            clearBoardButton.disabled = false;      // Clear is enabled
+            settingsArea.querySelectorAll('input, button').forEach(el => el.disabled = false); // Re-enable settings
+            gridContainer.classList.remove('game-running');
+
+            console.log("Board cleared completely."); // Debug log
+        }
+
+
+        /**
+         * Displays a temporary message to the user.
+         */
+        let messageTimeout;
+        function flashMessage(message, type = "info", duration = 2500) {
+             clearTimeout(messageTimeout);
+             messageArea.textContent = message;
+             messageArea.classList.remove('text-red-600', 'text-green-600', 'text-yellow-600', 'text-blue-600');
+             switch (type) {
+                 case 'error': messageArea.classList.add('text-red-600'); break;
+                 case 'success': messageArea.classList.add('text-green-600'); break;
+                 case 'warning': messageArea.classList.add('text-yellow-600'); break;
+                 case 'info': default: messageArea.classList.add('text-blue-600'); break;
+             }
+             messageArea.style.transition = 'opacity 0.2s ease-in-out';
+             messageArea.style.opacity = 1;
+             messageTimeout = setTimeout(() => { messageArea.style.opacity = 0; }, duration);
+        }
+
+        // --- Event Listeners ---
+        applySettingsButton.addEventListener('click', () => {
+            if (isGameRunning) {
+                 flashMessage("Apply settings after the current game ends or clear the board.", "info");
+                 return;
+            }
+            const newSize = parseInt(gridSizeInput.value);
+            const newTime = parseInt(timeLimitInput.value);
+            let settingsChanged = false;
+
+            if (newSize >= 3 && newSize <= 6) {
+                if (gridSize !== newSize) { gridSize = newSize; settingsChanged = true; }
+            } else {
+                gridSizeInput.value = gridSize;
+                flashMessage("Grid size must be between 3 and 6.", "warning");
+            }
+            if (newTime >= 10) {
+                 if (timeLimit !== newTime) { timeLimit = newTime; settingsChanged = true; }
+            } else {
+                 timeLimitInput.value = timeLimit;
+                 flashMessage("Time limit must be at least 10 seconds.", "warning");
+            }
+            if (settingsChanged) {
+                 clearBoardCompletely(); // Clear fully to apply new settings
+                 flashMessage("Settings applied. Board cleared.", "success");
+            }
+        });
+
+        // Game control buttons
+        startGameButton.addEventListener('click', startGame);
+        submitWordButton.addEventListener('click', submitWord);
+        // Reset button calls the function to reset state but keep board letters
+        resetCurrentGameButton.addEventListener('click', resetCurrentBoardState);
+        // Clear button calls the function to clear everything back to inputs
+        clearBoardButton.addEventListener('click', clearBoardCompletely);
+
+        // Event delegation for cell clicks on the grid container
+        gridContainer.addEventListener('click', handleCellClick);
+
+        // Touch and Mouse Drag Listeners
+        gridContainer.addEventListener('mousedown', handleDragStart);
+        gridContainer.addEventListener('touchstart', handleDragStart, { passive: false });
+        bodyElement.addEventListener('mousemove', handleDragMove);
+        bodyElement.addEventListener('touchmove', handleDragMove, { passive: false });
+        bodyElement.addEventListener('mouseup', handleDragEnd);
+        bodyElement.addEventListener('touchend', handleDragEnd);
+        bodyElement.addEventListener('touchcancel', handleDragEnd);
+
+
+        // --- Initial Setup ---
+        clearBoardCompletely(); // Start with a clean, empty grid
+
+    </script>
+
+</body>
+</html>
